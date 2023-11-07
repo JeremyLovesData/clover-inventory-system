@@ -1,0 +1,680 @@
+import customtkinter
+from barcode import UPCA
+from barcode.writer import ImageWriter
+from random import randint
+import tkinter as tk
+from tkinter import filedialog
+import re
+import pandas as pd
+import datetime as dt
+import os
+from fpdf import FPDF
+
+root = customtkinter.CTk()
+root.geometry("800x600")
+root.title("Green Space Plant Shop")
+
+button_list = []
+selected_item_product_code = None
+selected_item_name = None
+selected_item_price = None
+selected_item_cost = None
+df = None
+df_2 = None
+df_3 = None
+df_4 = None
+
+opened_file = None
+
+##############       Home Page (1st page) Section
+def home_page():
+    """
+    Display the Home Page of the application, where users can select an existing inventory Excel file.
+    """
+    home_frame = customtkinter.CTkFrame(main_frame, fg_color='lightgreen')
+    home_frame.pack(pady=20)
+    home_file_frame = customtkinter.CTkFrame(main_frame, fg_color='lightgreen')
+    home_file_frame.pack(pady=20)
+    
+    lb = customtkinter.CTkLabel(home_frame, text="Welcome to Green Spaces Plant Shop \n\n Please locate the existing inventory excel file below", font=('Bold', 30), text_color='Green', fg_color='lightgreen')
+    lb.pack()
+
+    open_file_entry = customtkinter.CTkEntry(home_file_frame)
+    open_file_entry.grid(row=0, column=0, padx = 10)
+
+    open_file_button = customtkinter.CTkButton(home_file_frame, text='Browse', command=lambda: open_file(home_file_frame, open_file_entry))
+    open_file_button.grid(row=0, column=1)
+
+    # open_file_submit_button = customtkinter.CTkButton(home_file_frame, text='Submit')
+    # open_file_submit_button.grid(row=1, column=0, columnspan = 2, pady=20)
+
+##############       Open a window to read the inventory .xlsx file Section
+def open_file(home_file_frame, open_file_entry):
+    """
+    Open a file dialog for users to select an existing inventory Excel file.
+    Reads the selected Excel file and initializes data frames.
+    
+    Parameters:
+    home_file_frame (customtkinter.CTkFrame): The frame to display the file selection.
+    open_file_entry (customtkinter.CTkEntry): The entry widget to display the selected file path.
+
+    Returns:
+    pd.DataFrame, str, pd.DataFrame, pd.DataFrame, pd.DataFrame: Data frames and file path.
+    None, None, None, None, None: If the file is not selected or has the wrong format.
+    """
+    global df
+    global df_2
+    global df_3
+    global df_4
+    global opened_file
+
+     # Destroy the 'open_file_failure' label if it exists
+    for widget in home_file_frame.winfo_children():
+        if isinstance(widget, customtkinter.CTkLabel) and widget.cget("text") == "Error! Please select the correct inventory file":
+            widget.destroy()
+
+    while True:
+        try:
+            opened_file = filedialog.askopenfilename()
+            break
+        except ValueError:
+            continue
+
+    if opened_file.endswith(".xlsx"):
+        # Display success message
+        open_file_success = customtkinter.CTkLabel(home_file_frame, text='Inventory file successfully selected', font=('Bold', 20), text_color="Black")
+        open_file_success.grid(row=2, column=0, columnspan=2, pady=20)
+        # Read data from the selected Excel file into dataframes
+        df = pd.read_excel(opened_file, header=0, dtype=str, sheet_name='Items')
+        df_2 = pd.read_excel(opened_file, header=0, dtype=str, sheet_name='Modifier Groups')
+        df_3 = pd.read_excel(opened_file, header=0, dtype=str, sheet_name='Categories')
+        df_4 = pd.read_excel(opened_file, header=0, dtype=str, sheet_name='Tax Rates')
+        df = df.fillna('')
+        df = df.astype(str)
+        #print(f"The file you opened was: {opened_file}")
+        # Disable the file entry widget after successful selection
+        open_file_entry.insert(customtkinter.END, opened_file)
+        open_file_entry.configure(state='disabled')
+        # Return the df so that other functions can access it
+        return df, opened_file, df_2, df_3, df_4
+    else:
+        # Display an error message for incorrect file format
+        open_file_failure = customtkinter.CTkLabel(home_file_frame, text="Error! Please select the correct inventory file", font=('Bold', 20), text_color='Black')
+        open_file_failure.grid(row=2, column=0, columnspan=2, pady=20)
+        return None, None, None, None, None
+
+##############       Barcode Create Section
+def new_barcode_create(df, name_input, barcode_input, quantity_input, price_input, cost_input, barcode_creation, new_name):
+    """
+    Generate a barcode and create a PDF file with barcode and information for a new item.
+
+    Parameters:
+        df (pandas.DataFrame): The inventory data as a DataFrame.
+        name_input (customtkinter.CTkEntry): The entry widget for item name.
+        barcode_input (customtkinter.CTkEntry): The entry widget for barcode number.
+        quantity_input (customtkinter.CTkEntry): The entry widget for quantity.
+        price_input (customtkinter.CTkEntry): The entry widget for price.
+        cost_input (customtkinter.CTkEntry): The entry widget for cost.
+        barcode_creation (str): The barcode number to generate a barcode from.
+        new_name (str): The name of the new item.
+    """
+    string_price = str(price_input.get())
+    print(f"The price input is {price_input.get()}")
+    print(f"The string price input is {string_price}")
+    try: 
+        # Create a PDF document
+        # pdf = FPDF('P', 'mm', (58, 30)) #Label size? 
+        pdf = FPDF('P', 'mm', 'A4')
+        pdf.set_font('Arial', 'B', 14)
+        x,y,w,h = 5, 5, 50, 35
+        pdf.add_page()   #Needed to make the first PDF page
+        text_x = x + w + 20
+        text_y = y + h / 2
+
+        # Define the directory path
+        directory_path = 'C:/Users/Romia/Documents/Green Spaces/Barcodes/'
+
+        # Create the directory if it doesn't exist
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        
+        barcode_file_name = f'{directory_path}{new_name}'
+
+        # Generate a barcode and save it as an image
+        my_code = UPCA(barcode_creation, writer=ImageWriter())
+        my_code.save(barcode_file_name)
+        print(f"The barcode file name is {barcode_file_name}")
+
+        # Add the barcode image to the PDF
+        pdf.image(barcode_file_name +'.png', x,y,w,h)
+
+        # pdf.text(text_x, text_y, txt=new_name)
+        # pdf.text(text_x, y+h, txt=string_price)
+        # Create a PDF file with item name and price
+        pdf.set_xy(60, 10)
+        # pdf.cell(w = 30, h = 10, txt=new_name, border=1, ln=1)
+        # pdf.cell(w = 30, h = 10, txt=string_price, border=1)
+        pdf.multi_cell(w=100, h=10, border = 0, txt=new_name + "\n" + "$"+string_price)
+        new_pdf_file_path = os.path.join(directory_path, new_name+".pdf")
+        pdf.output(new_pdf_file_path, 'F')
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+    # Call the write function to update the inventory
+    write(df, name_input, barcode_input, quantity_input, price_input, cost_input)
+
+def barcode_create(barcode_insert):
+    """
+    Creates a random 12 digit barcode and saves it in UPCA format
+    Then inserts the 12 digit number into t he barcode_insert entry box
+
+    Parameters:
+    barcode_input (customtkinter.CTkEntry): The entry widget for barcode number.
+    """
+    my_code = ''
+    rand_num = str(randint(100000000000, 999999999999))
+    my_code = UPCA(rand_num)
+
+    barcode_insert.delete(0,customtkinter.END)
+    barcode_insert.insert(customtkinter.END, my_code)
+
+# def selections_barcode_creator():
+#     '''
+#     Displays the barcode creator section.
+#     Allows users to generate new barcodes.
+
+#     Parameters:
+#     None
+
+#     Returns:
+#     None
+#     '''
+#     frame = customtkinter.CTkFrame(master=main_frame, fg_color='silver')
+#     frame.pack(pady=20, padx=60, fill="both", expand=True)
+#     frame.configure(width=700, height=600)
+
+#     submit_button = customtkinter.CTkButton(master=frame, text="Click here to generate a new barcode", command=lambda: barcode_create(barcode_window))
+#     submit_button.pack(pady=12, padx=10)
+
+#     barcode_window = customtkinter.CTkTextbox(master=frame, width=600, height=50)
+#     barcode_window.pack(pady=12, padx=10)
+
+##############       Inventory Search Section
+def results(matches, blank_text_box, button_list,inventory_third_frame):
+    '''
+    Displays search results for inventory items and creates buttons for selection.
+
+    Parameters:
+    matches (pd.DataFrame): The matching items in the inventory.
+    blank_text_box (Tk.Text): The text box for displaying search results.
+    button_list (list): The list of buttons for selecting items.
+    inventory_third_frame (Tk.Frame): The frame for displaying search results and buttons.
+
+    Returns:
+    None
+    '''
+    formatted_results = ""
+
+    # Clear the previous search results and buttons
+    for button in button_list:
+        button.destroy()
+    button_list.clear()
+
+    for index, (product_code, name, price) in enumerate(zip(matches['Product Code'], matches['Name'], matches['Price'])): #uses enumerate to get the index value of each result in the matches dataframe
+        formatted_results += f"Choice: {index}\nName: {name}\nBarcode Number: {product_code}\nPrice: {price}\n\n"
+        new_button = customtkinter.CTkButton(master=inventory_third_frame, text=f"Select {index}", command=lambda i=index: select_item(i, matches)) #saves the product code from the selected item
+        new_button.grid(row=index, column=0, pady=10)
+        button_list.append(new_button)
+        
+    blank_text_box.delete(1.0, customtkinter.END)
+    blank_text_box.insert(1.0, formatted_results)
+
+def word_search(name_input, blank_text_box, button_list, inventory_third_frame):
+    '''
+    Performs a word search in the inventory based on the item name.
+
+    Parameters:
+    name_input (Tk.Entry): The input field for the item name.
+    blank_text_box (Tk.Text): The text box for displaying search results.
+    button_list (list): The list of buttons for selecting items.
+    inventory_third_frame (Tk.Frame): The frame for displaying search results and buttons.
+
+    Returns:
+    None
+    '''
+    new_name = name_input.get()
+    matches = df[df['Name'].apply(lambda x: re.search(new_name, x, flags=re.IGNORECASE) is not None)]
+    results(matches, blank_text_box, button_list, inventory_third_frame)
+
+##############       Fill info from Inventory Search to Inventory Updater Section
+def select_item(index, matches):
+    '''
+    Handles the selection of an inventory item and populates the item's information for updating.
+
+    Parameters:
+    index (int): The index of the selected item.
+    matches (pd.DataFrame): The matching items in the inventory.
+
+    Returns:
+    None
+    '''
+    global selected_item_product_code
+    global selected_item_cost
+    global selected_item_name
+    global selected_item_price
+    # Handle the button click for the selected item (index)
+    # You can access the selected item from 'matches' using the index
+    selected_item_product_code = matches.iloc[index]['Product Code']
+    selected_item_name = matches.iloc[index]['Name']
+    selected_item_price = matches.iloc[index]['Price']
+    selected_item_cost = matches.iloc[index]['Cost']
+    #print(f"The selected item is {selected_item_product_code}") #for testing purposes
+    indicate(add_inventory_indicate, selections_add_inventory)
+
+##############       "Submit" button handler
+def submit_button_handler(name_input, blank_text_box, inventory_third_frame):
+    '''
+    Handles the submission of a search query in the inventory by checking to see if a .xlsx file was uploaded
+
+    Parameters:
+    name_input (Tk.Entry): The input field for the item name.
+    blank_text_box (Tk.Text): The text box for displaying search results.
+    inventory_third_frame (Tk.Frame): The frame for displaying search results and buttons.
+
+    Returns:
+    None
+    '''
+    try:
+        word_search(name_input, blank_text_box, button_list, inventory_third_frame)
+    except TypeError:
+        toplevel = customtkinter.CTkToplevel()
+        toplevel.title("Error!")
+        toplevel.grab_set()
+
+        x = root.winfo_x()
+        y = root.winfo_y()
+
+        w = toplevel.winfo_width()
+        h = toplevel.winfo_height()
+        toplevel.geometry("%dx%d+%d+%d" % (w, h, x + 400, y + 400))
+
+        top_label = customtkinter.CTkLabel(toplevel, text="Error! \n\nPlease make sure you \nuploaded an .xlsx file")
+        top_label.pack(padx=10, pady=10)
+
+        top_button = customtkinter.CTkButton(toplevel, text="Close Window", command=toplevel.destroy)
+        top_button.pack(padx=10, pady=10)
+
+##############       Inventory Search Section
+def selections_inventory_search():
+    '''
+    This function creates a GUI for searching the inventory.
+    Displays the inventory search section.
+    Allows users to search for items in the inventory.
+
+    Parameters:
+    None
+
+    Returns:
+    None
+    '''
+    big_frame = customtkinter.CTkFrame(main_frame, fg_color='lightgreen')
+    big_frame.place(relx=0.5, rely=0.5, anchor='center')
+
+    inventory_search_frame = customtkinter.CTkFrame(big_frame, fg_color='lightgreen')
+    inventory_choice_frame = customtkinter.CTkFrame(big_frame, fg_color='lightgreen')
+    inventory_third_frame = customtkinter.CTkFrame(big_frame, fg_color='lightgreen')
+
+    inventory_search_frame.grid(row=0, column=0, sticky='nsew', columnspan=2)
+    inventory_search_frame.grid_columnconfigure(0, weight=1) #centers the buttons
+    inventory_choice_frame.grid(row=1, column=1)
+    inventory_third_frame.grid(row=1, column=0)
+
+    name_input = customtkinter.CTkEntry(master=inventory_search_frame, placeholder_text="Item Name")
+    name_input.grid(row=0, column=0, pady=12, padx=10, columnspan=2)
+
+    submit_button = customtkinter.CTkButton(master=inventory_search_frame, text="Submit", command=lambda: submit_button_handler(name_input, blank_text_box, inventory_third_frame)) #Writes to excel
+    submit_button.grid(row=1, column=0, pady=12, padx=10, columnspan=2)
+
+    reset_button = customtkinter.CTkButton(master=inventory_search_frame, text="Reset", command=lambda: reset(name_input)) #Writes to excel
+    reset_button.grid(row=2, column=0, pady=12, padx=10, columnspan=2)
+
+    blank_text_box = customtkinter.CTkTextbox(master=inventory_choice_frame, width=450, height = 300)
+    blank_text_box.grid(row=0, column=1, pady=12, padx=10)
+
+##############       Add Inventory Section
+def write(df, name_input, barcode_input, quantity_input, price_input, cost_input):
+    '''
+    Exports the inventory data frame to an Excel file.
+
+    Parameters:
+    df (pd.DataFrame): The inventory data frame.
+    name_input (Tk.Entry): The input field for the item name.
+    barcode_input (Tk.Entry): The input field for the barcode.
+    quantity_input (Tk.Entry): The input field for the quantity.
+    price_input (Tk.Entry): The input field for the price.
+    cost_input (Tk.Entry): The input field for the cost.
+
+    Returns:
+    None
+    '''
+    dict_length = len(df['Product Code'])
+    
+
+    # Define the directory path - will have to change depending on user
+    directory_path = 'C:/Users/Romia/Documents/Green Spaces/'
+
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
+    
+    data = pd.DataFrame(df) #saves the dataframe
+
+    date_str = dt.datetime.today().strftime("%m-%d-%y")
+    file_name = f'{directory_path}{date_str} Inventory.xlsx'
+
+    with pd.ExcelWriter(file_name) as writer:
+        data.to_excel(writer, sheet_name='Items', index=False) #writes the dataframe to a new .xlsx file
+        df_2.to_excel(writer, sheet_name='Modifier Groups', index=False)
+        df_3.to_excel(writer, sheet_name='Categories', index=False)
+        df_4.to_excel(writer, sheet_name='Tax Rates', index=False)
+
+    print("The inventory has been updated")
+    add_inventory_reset(name_input, barcode_input, quantity_input, price_input, cost_input) #clears the data from the entry boxes
+
+def new_items(name_input, barcode_input, quantity_input, price_input, cost_input):
+    """
+    This function checks if the provided barcode is already in the inventory. If found, it updates the item's quantity, price, and cost.
+    If the barcode is not found, a new item is added to the inventory with the provided details, and a new barcode is created.
+    Also, gives error if you try to add a new  item to the inventory without first uploading a .xlsx file
+
+    Parameters:
+    df (pd.DataFrame): The inventory data frame.
+    name_input (Tk.Entry): The input field for the item name.
+    barcode_input (Tk.Entry): The input field for the barcode.
+    quantity_input (Tk.Entry): The input field for the quantity.
+    price_input (Tk.Entry): The input field for the price.
+    cost_input (Tk.Entry): The input field for the cost.
+    """
+    new_barcode = int(barcode_input.get())
+    barcode_creation = str(barcode_input.get())
+    new_name = name_input.get()
+    
+    try:
+        new_quantity = int(quantity_input.get())
+        new_price = float(price_input.get())
+        new_cost = float(cost_input.get())
+    except ValueError:
+        toplevel = customtkinter.CTkToplevel()
+        toplevel.title("Error!")
+        toplevel.grab_set()
+
+        x = root.winfo_x()
+        y = root.winfo_y()
+
+        w = toplevel.winfo_width()
+        h = toplevel.winfo_height()
+        toplevel.geometry("%dx%d+%d+%d" % (w, h, x + 200, y + 200))
+
+        top_label = customtkinter.CTkLabel(toplevel, text="Error! \n\nPlease enter only numbers for\nQuanity, Price, and Cost")
+        top_label.pack(padx=10, pady=10)
+
+        top_button = customtkinter.CTkButton(toplevel, text="Close Window", command=toplevel.destroy)
+        top_button.pack(padx=10, pady=10)
+
+        add_inventory_reset(name_input, barcode_input, quantity_input, price_input, cost_input)
+        return
+    
+    #These variables will not change based on how Clover is set up and our needs
+    new_price_type = "Variable"
+    new_tax_rates = "DEFAULT"
+    new_hidden = "No"
+    new_nonrevenue_item = "No"
+
+    try:
+        product_code_check(new_barcode, new_quantity, new_price, new_cost, new_price_type, new_tax_rates, new_hidden, new_nonrevenue_item, new_name, name_input, barcode_input, quantity_input, price_input, cost_input, barcode_creation)
+    except (AttributeError, ValueError):
+        toplevel = customtkinter.CTkToplevel()
+        toplevel.title("Error!")
+        toplevel.grab_set()
+
+        x = root.winfo_x()
+        y = root.winfo_y()
+
+        w = toplevel.winfo_width()
+        h = toplevel.winfo_height()
+        toplevel.geometry("%dx%d+%d+%d" % (w, h, x + 200, y + 200))
+
+        top_label = customtkinter.CTkLabel(toplevel, text="Error! \n\nPlease make sure you \nuploaded an .xlsx file")
+        top_label.pack(padx=10, pady=10)
+
+        top_button = customtkinter.CTkButton(toplevel, text="Close Window", command=toplevel.destroy)
+        top_button.pack(padx=10, pady=10)
+
+        add_inventory_reset(name_input, barcode_input, quantity_input, price_input, cost_input)
+        return
+
+def product_code_check(new_barcode, new_quantity, new_price, new_cost, new_price_type, new_tax_rates, new_hidden, new_nonrevenue_item, new_name, name_input, barcode_input, quantity_input, price_input, cost_input, barcode_creation):
+    """
+    This function checks the existing inventory for a product with the given barcode.
+    If the product is found, it updates the quantity, price, and other details.
+    If the product is not found, it adds a new product entry to the inventory.
+
+    Parameters:
+    new_barcode (int): The barcode of the new product.
+    new_quantity (int): The quantity of the new product.
+    new_price (float): The price of the new product.
+    new_cost (float): The cost of the new product.
+    new_price_type (str): The price type of the new product.
+    new_tax_rates (str): The tax rates of the new product.
+    new_hidden (str): Indicates if the new product is hidden.
+    new_nonrevenue_item (str): Indicates if the new product is a non-revenue item.
+    new_name (str): The name of the new product.
+    name_input (customtkinter.CTkEntry): The input field for the product name.
+    barcode_input (customtkinter.CTkEntry): The input field for the barcode number.
+    quantity_input (customtkinter.CTkEntry): The input field for the quantity.
+    price_input (customtkinter.CTkEntry): The input field for the price.
+    cost_input (customtkinter.CTkEntry): The input field for the cost.
+    barcode_creation (str): The generated barcode for the new product.
+    """
+    barcode_exists = False #variable to keep track on whether or not the barcode is found already in the inventory
+    for index, row in df.iterrows(): 
+        product_code = row['Product Code']
+        try:
+            product_code = int(product_code) # Convert to an integer
+            if product_code == new_barcode: 
+                print(f"The product code {new_barcode} is in!")
+                try: #Used if there is a number in quantity
+                    df.at[index, 'Quantity'] = int(df.at[index, 'Quantity']) + new_quantity
+                except ValueError: #Used if there is no number in quantity
+                    df.at[index, 'Quantity'] = int(new_quantity)
+                df.at[index, 'Price'] = new_price
+                df.at[index, 'Price Type'] = new_price_type
+                df.at[index, 'Tax Rates'] = new_tax_rates
+                df.at[index, 'Cost'] = new_cost
+                df.at[index, 'Hidden'] = new_hidden
+                df.at[index, 'Non-revenue item'] = new_nonrevenue_item
+                print(f"Changing the quantity to {df.at[index, 'Quantity']}")
+                barcode_exists = True #flags the variable to True, which means that the barcode is found in the inventory and the next IF statement isn't needed
+                break
+        except ValueError:
+            #print(f"Invalid 'Product Code' value at index {index}: {df['Name'][index]}")
+            pass
+
+    if not barcode_exists: #if the variable is still false (meaning that it doesn't turn True from above)
+        print("The product code was NOT found, so adding a new line in the inventory")
+        cols = ["Product Code", "Quantity", "Price", "Cost", "Price Type", "Tax Rates", "Hidden", "Non-revenue item", 'Name'] #code that works in correctly adding items at the end at the end of the spreadsheet
+        df.loc[len(df), cols] = [int(new_barcode), int(new_quantity), new_price, new_cost, new_price_type, new_tax_rates, new_hidden, new_nonrevenue_item, new_name] #code that works in correctly adding items at the end at the end of the spreadsheet
+        
+        new_barcode_create(df, name_input, barcode_input, quantity_input, price_input, cost_input, barcode_creation, new_name)
+    else:
+        write(df, name_input, barcode_input, quantity_input, price_input, cost_input) #a function that exports the dataframe into a .xlsx document
+
+def add_inventory_reset(name_input, barcode_insert, quantity_input, price_input, cost_input):
+    """
+    This function clears the text entry fields for the product name, barcode, quantity,
+    price, and cost, effectively resetting them to their initial state.
+
+    Parameters:
+    name_input (customtkinter.CTkEntry): The input field for the product name.
+    barcode_insert (customtkinter.CTkEntry): The input field for the barcode number.
+    quantity_input (customtkinter.CTkEntry): The input field for the quantity.
+    price_input (customtkinter.CTkEntry): The input field for the price.
+    cost_input (customtkinter.CTkEntry): The input field for the cost.
+    """
+    for entry in [name_input, barcode_insert, quantity_input, price_input, cost_input]:
+        entry.delete(0, customtkinter.END)
+
+def selections_add_inventory():
+    """
+    This function creates a GUI for adding new items to the inventory to the inventory with details such as name, barcode, quantity, price, and cost.
+
+    Returns:
+    None
+    """
+    add_inventory_frame = customtkinter.CTkFrame(main_frame, fg_color='lightgreen')
+    add_inventory_frame.place(relx=0.5, rely=0.5, anchor='center')
+
+    barcode_label = customtkinter.CTkLabel(master=add_inventory_frame, text="Barcode Number:", text_color='Black')
+    barcode_label.grid(row=0, column=2, padx = 10, sticky='e')
+
+    blank_label = customtkinter.CTkLabel(master=add_inventory_frame, text="                 ")
+    blank_label.grid(row=0, column=1, padx = 10)
+
+    barcode_insert = customtkinter.CTkEntry(master=add_inventory_frame, width=140, height=10, placeholder_text="Barcode Number")
+    barcode_insert.grid(row=0, column=3, pady = 10, columnspan=1)
+
+    if selected_item_product_code != None: #Checks to see if there was something selected from the Inventory Search
+        barcode_insert.insert(customtkinter.END, selected_item_product_code)
+
+    barcode_creator_button = customtkinter.CTkButton(master=add_inventory_frame, text="Click here to create a new barcode", command=lambda: barcode_create(barcode_insert))
+    barcode_creator_button.grid(row=0, column=6, pady = 10, padx = 10, sticky="e")
+
+    product_name_label = customtkinter.CTkLabel(master=add_inventory_frame, text="Product Name:", text_color='Black')
+    product_name_label.grid(row=1, column=2, padx = 10, sticky='e')
+    
+    name_input = customtkinter.CTkEntry(master=add_inventory_frame, placeholder_text="Item Name")
+    name_input.grid(row=1, column=3, pady = 10, columnspan=2)
+
+    if selected_item_product_code != None: #Checks to see if there was something selected from the Inventory Search
+        name_input.insert(customtkinter.END, selected_item_name)
+
+    quantity_input = customtkinter.CTkEntry(master=add_inventory_frame, placeholder_text="Quantity")
+    quantity_input.grid(row=2, column=3, pady = 10, columnspan=1)
+
+    quantity_label = customtkinter.CTkLabel(master=add_inventory_frame, text="Quantity:", text_color='Black')
+    quantity_label.grid(row=2, column=2, padx = 10, columnspan=1, sticky='e')
+
+    price_input = customtkinter.CTkEntry(master=add_inventory_frame, placeholder_text="Price")
+    price_input.grid(row=3, column=3, pady = 10, columnspan=1)
+
+    if selected_item_product_code != None: #Checks to see if there was something selected from the Inventory Search
+        price_input.insert(customtkinter.END, selected_item_price)
+
+    price_label = customtkinter.CTkLabel(master=add_inventory_frame, text="Price:", text_color='Black')
+    price_label.grid(row=3, column=2, padx = 10, columnspan=1, sticky='e')
+
+    cost_input = customtkinter.CTkEntry(master=add_inventory_frame, placeholder_text="Cost")
+    cost_input.grid(row=4, column=3, pady = 10, columnspan=1)
+
+    if selected_item_product_code != None: #Checks to see if there was something selected from the Inventory Search
+        cost_input.insert(customtkinter.END, selected_item_cost)
+
+    cost_label = customtkinter.CTkLabel(master=add_inventory_frame, text="Cost:", text_color='Black')
+    cost_label.grid(row=4, column=2, padx = 10, columnspan=1, sticky='e')
+
+    submit_button = customtkinter.CTkButton(master=add_inventory_frame, text="Submit", command=lambda: new_items(name_input, barcode_insert, quantity_input, price_input, cost_input)) #Writes to excel
+    submit_button.grid(row=5, column=3, pady = 10, columnspan=1)
+
+    reset_button = customtkinter.CTkButton(master=add_inventory_frame, text="Reset", command=lambda: add_inventory_reset(name_input, barcode_insert, quantity_input, price_input, cost_input)) #Clears the data in the entry boxes
+    reset_button.grid(row=6, column=3, pady = 10, columnspan=1)
+
+##############       Hides the indicators when not selected
+def hide_indicators(): 
+    """
+    This function resets the visual indicators for menu options by changing their colors to the default.
+
+    Returns:
+    None
+    """
+    home_indicate.configure(fg_color='#c3c3c3')
+    # barcode_create_indicate.configure(fg_color='#c3c3c3')
+    inventory_search_indicate.configure(fg_color='#c3c3c3')
+    add_inventory_indicate.configure(fg_color='#c3c3c3')
+
+##############       Destroys the frame when something else is selected
+def delete_pages():
+    """
+    This function is used to clear the main frame by destroying its child widgets when switching between menu options.
+
+    Returns:
+    None
+    """
+    for frame in main_frame.winfo_children():
+        frame.destroy()
+
+##############       highlights the selected option when clicked
+def indicate(lb, page):
+    """
+    This function changes the color of the selected menu option label and executes the associated function when a menu option is selected.
+
+    Parameters:
+    lb (customtkinter.CTkLabel): Label widget representing the selected menu option.
+    page (function): The function to execute when the menu option is selected.
+
+    Returns:
+    None
+    """
+    hide_indicators()
+    lb.configure(fg_color='#158aff')
+    delete_pages()
+    page()
+
+def reset(name_input):
+    """
+    This function clears the text in the provided entry widget.
+
+    Parameters:
+    name_input (customtkinter.CTkEntry): Entry widget to reset.
+
+    Returns:
+    None
+    """
+    name_input.delete(0, customtkinter.END)
+
+##############       Root Window Section
+options_frame = customtkinter.CTkFrame(root, fg_color='#c3c3c3') #the left frame where the user selections what they want to do
+options_frame.pack(side=customtkinter.LEFT)
+options_frame.pack_propagate(False)
+options_frame.configure(width=100, height=600)
+
+home_btn = customtkinter.CTkButton(options_frame, text='Home\n ', font=('Bold', 15), fg_color='#c3c3c3', border_width=0, text_color='Blue', text_color_disabled='Black', 
+                                   command=lambda: indicate(home_indicate, home_page))
+home_btn.place(x=-15, y=50)
+
+home_indicate = customtkinter.CTkLabel(options_frame, text="", fg_color='#c3c3c3', width=5, height=40)
+home_indicate.place(x=3, y=50)
+
+inventory_search_button = customtkinter.CTkButton(options_frame, text='Inventory \nLookup', font=('Bold', 15), fg_color='#c3c3c3', border_width=0, text_color='Blue', text_color_disabled='Black',
+                                      command=lambda: indicate(inventory_search_indicate, selections_inventory_search))
+inventory_search_button.place(x=-15, y=100)
+
+inventory_search_indicate = customtkinter.CTkLabel(options_frame, text="", fg_color='#c3c3c3', width=5, height=40)
+inventory_search_indicate.place(x=3, y=100)
+
+add_inventory_button = customtkinter.CTkButton(options_frame, text='Update \nInventory', font=('Bold', 15), fg_color='#c3c3c3', border_width=0, text_color='Blue', text_color_disabled='Black',
+                                    command=lambda: indicate(add_inventory_indicate, selections_add_inventory))
+add_inventory_button.place(x=-15, y=150)
+
+add_inventory_indicate = customtkinter.CTkLabel(options_frame, text="", fg_color='#c3c3c3', width=5, height=40)
+add_inventory_indicate.place(x=3, y=150)
+
+made_by = customtkinter.CTkLabel(options_frame, text="Created by: \nJeremy Alvarez", text_color="Black")
+made_by.place(x=3, y=550)
+
+main_frame = customtkinter.CTkFrame(root, fg_color='lightgreen') #main frame of where the action takes place
+
+main_frame.pack(side=customtkinter.LEFT)
+main_frame.pack_propagate(False)
+main_frame.configure(width=700, height=600)
+
+indicate(home_indicate, home_page)
+root.mainloop()
