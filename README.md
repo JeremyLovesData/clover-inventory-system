@@ -15,7 +15,7 @@
 
 ## Introduction
 
-The Clover Inventory System is a tool designed to simplify and streamline inventory management for businesses that use the Clover Point of Sale (POS) system. This program assists users in updating their inventory records by importing data from Excel files. Whether you need to update existing items or add new ones, this system provides a user-friendly interface for managing your inventory efficiently.
+The Clover Inventory System is a tool designed to simplify and streamline inventory management for businesses that use the Clover Point of Sale (POS) system. This program assists users in updating their inventory records by importing data from Excel files. The program also created barcodes for new items and saves them in a printable PDF format. Whether you need to update existing items or add new ones, this system provides a user-friendly interface for managing your inventory efficiently.
 
 ## Getting Started
 
